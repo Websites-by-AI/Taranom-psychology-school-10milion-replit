@@ -27,7 +27,8 @@ import ProfileSettingsView from "./components/ProfileSettingsView";
 import CounselorDashboardView from "./components/CounselorDashboardView";
 import TeacherDashboardView from "./components/TeacherDashboardView";
 import { Brain, Settings, Database } from "lucide-react";
-import SmartNotifications, { getRoleBannerAlert } from "./components/SmartNotifications";
+import SmartNotifications from "./components/SmartNotifications";
+import { getRoleBannerAlert } from "./utils/notificationHelpers";
 import FocusChallengeOverlay from "./components/FocusChallengeOverlay";
 import { getProfileMetadata, getHydratedStudent } from "./lib/userProfiles";
 
