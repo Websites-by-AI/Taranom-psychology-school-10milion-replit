@@ -14,7 +14,7 @@ import ContentAuditModule from "./ContentAuditModule";
 import SaaSContractView from "./SaaSContractView";
 
 export default function AdminView({ student, onUpdateBrand }: { student?: Student | null; onUpdateBrand?: () => void }) {
-  const [activeTab, setActiveTab] = useState<"students" | "analytics" | "uploads" | "content"| "sysdocs" | "roadmap" | "architecture" | "mockexam" | "syslogs" | "integrations" | "investment" | "audit" | "zarinpal" | "diagnostics" | "contract" | "ai-monitor">("roadmap");
+  const [activeTab, setActiveTab] = useState<"students" | "analytics" | "uploads" | "content"| "sysdocs" | "roadmap" | "architecture" | "mockexam" | "syslogs" | "integrations" | "investment" | "audit" | "zarinpal" | "diagnostics" | "contract" | "ai-monitor" | "db-monitor">("roadmap");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterField, setFilterField] = useState("all");
   const [selectedScenario, setSelectedScenario] = useState<"mvp" | "stable" | "enterprise">("stable");
@@ -83,6 +83,173 @@ export default function AdminView({ student, onUpdateBrand }: { student?: Studen
     gemini: "idle",
     database: "idle"
   });
+
+  // --- DB MONITOR STATE ---
+  const [dbModuleTests, setDbModuleTests] = useState<Record<string, "idle" | "loading" | "ok" | "empty">>({});
+  const [apiEndpointTests, setApiEndpointTests] = useState<Record<string, "idle" | "loading" | "ok" | "error">>({});
+  const [apiLatency, setApiLatency] = useState<Record<string, number>>({});
+
+  const localStorageModules = [
+    { key: "arateb_new_registrations",         label: "ثبت‌نام کاربران",              modules: ["LoginView", "TeacherDashboard", "AdminView"],          icon: "👥" },
+    { key: "arateb_goals_{id}",                label: "اهداف تحصیلی داوطلب",          modules: ["GoalTracker", "DashboardView", "CustomQuizGenerator"],  icon: "🎯" },
+    { key: "arateb_history_{id}",              label: "تاریخچه تراز",                  modules: ["GoalTracker", "DashboardView", "AdmissionForecast"],    icon: "📈" },
+    { key: "arateb_hours_{id}",                label: "ساعات مطالعه",                  modules: ["GoalTracker"],                                          icon: "⏰" },
+    { key: "taranom_mehr_sessions_{id}",       label: "جلسات چت مشاور",               modules: ["CounselorView"],                                        icon: "💬" },
+    { key: "arateb_latest_simulator_traz_{id}",label: "نتیجه شبیه‌ساز آزمون",         modules: ["RealTimeExamSimulator"],                                icon: "📝" },
+    { key: "chatre_custom_exams",              label: "آزمون‌های سفارشی",              modules: ["ProgressView"],                                         icon: "📋" },
+    { key: "taranom_teacher_prescription_{id}",label: "نسخه دبیر",                    modules: ["TeacherDashboard", "DashboardView"],                    icon: "📓" },
+    { key: "taranom_psychology_interviews_{id}",label:"مصاحبه‌های روانشناختی",         modules: ["AssessmentView"],                                       icon: "🧠" },
+    { key: "taranom_psychology_reports_{id}",  label: "گزارش‌های روانشناختی",          modules: ["AssessmentView"],                                       icon: "📊" },
+    { key: "taranom_advisor_comment_{id}",     label: "یادداشت مشاور",                modules: ["DashboardView"],                                        icon: "💡" },
+    { key: "taranom_app_theme",                label: "تنظیم تم رابط کاربری",         modules: ["App.tsx"],                                             icon: "🎨" },
+  ];
+
+  const apiEndpointDefs = [
+    { id: "health",      method: "GET",  path: "/api/health",             label: "Health Check سرور",        body: null },
+    { id: "ai-status",   method: "GET",  path: "/api/ai-status",          label: "وضعیت AI (همه بخش‌ها)",    body: null },
+    { id: "motivational",method: "GET",  path: "/api/motivational",       label: "پیام انگیزشی روزانه",      body: null },
+    { id: "chat",        method: "POST", path: "/api/chat",               label: "چت مشاور دکتر رادان",      body: { message: "سلام" } },
+    { id: "goal-insight",method: "POST", path: "/api/goal-insight",       label: "تحلیل هدف و تراز",         body: { currentTraz: 7000, targetTraz: 9000 } },
+    { id: "analyze-exam",method: "POST", path: "/api/analyze-exam",       label: "تحلیل کارنامه آزمون",      body: { examData: {} } },
+    { id: "psychology",  method: "POST", path: "/api/psychology-analysis",label: "تحلیل روانشناختی",         body: { responses: [] } },
+    { id: "payment",     method: "POST", path: "/api/payment/request",    label: "درگاه زرین‌پال",            body: { amount: 10000, description: "test" } },
+  ];
+
+  const testLocalStorageModule = (key: string) => {
+    const baseKey = key.replace("_{id}", "");
+    setDbModuleTests(prev => ({ ...prev, [key]: "loading" }));
+    setTimeout(() => {
+      let found = false;
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(baseKey)) { found = true; break; }
+      }
+      setDbModuleTests(prev => ({ ...prev, [key]: found ? "ok" : "empty" }));
+    }, 200 + Math.random() * 300);
+  };
+
+  const testAllLocalStorage = () => {
+    localStorageModules.forEach(m => testLocalStorageModule(m.key));
+  };
+
+  const testApiEndpoint = async (ep: typeof apiEndpointDefs[0]) => {
+    setApiEndpointTests(prev => ({ ...prev, [ep.id]: "loading" }));
+    const start = Date.now();
+    try {
+      const res = await fetch(ep.path, {
+        method: ep.method,
+        headers: { "Content-Type": "application/json" },
+        ...(ep.body ? { body: JSON.stringify(ep.body) } : {})
+      });
+      const ms = Date.now() - start;
+      setApiLatency(prev => ({ ...prev, [ep.id]: ms }));
+      setApiEndpointTests(prev => ({ ...prev, [ep.id]: res.ok ? "ok" : "error" }));
+    } catch {
+      setApiEndpointTests(prev => ({ ...prev, [ep.id]: "error" }));
+    }
+  };
+
+  const testAllApiEndpoints = () => {
+    apiEndpointDefs.forEach(ep => testApiEndpoint(ep));
+  };
+
+  const externalDbServices = [
+    {
+      name: "Replit PostgreSQL",
+      desc: "دیتابیس PostgreSQL بومی Replit — داخل همین پنل، بدون سرویس خارجی، صفر تا صد یکپارچه.",
+      envKeys: [{ key: "DATABASE_URL", hint: "خودکار توسط Replit تنظیم می‌شود" }],
+      link: "https://docs.replit.com/cloud-services/storage-and-databases/postgresql",
+      badge: "پیشنهاد اول ✦",
+      badgeColor: "emerald",
+      logo: "🐘",
+      npm: "npm install pg @types/pg",
+      steps: [
+        "در پنل Replit روی «+» یا Add Database کلیک کنید.",
+        "PostgreSQL را انتخاب و Attach کنید.",
+        "متغیر DATABASE_URL خودکار در Secrets قرار می‌گیرد.",
+        "با import pg در server.ts یا routes وصل شوید."
+      ]
+    },
+    {
+      name: "Supabase",
+      desc: "PostgreSQL مدیریت‌شده با REST API خودکار، Auth، Storage و Realtime رایگان.",
+      envKeys: [
+        { key: "SUPABASE_URL", hint: "از Settings → API در داشبورد Supabase" },
+        { key: "SUPABASE_ANON_KEY", hint: "کلید عمومی (anon/public)" },
+        { key: "SUPABASE_SERVICE_KEY", hint: "کلید سرور (service_role) — فقط در backend" }
+      ],
+      link: "https://supabase.com",
+      badge: "محبوب",
+      badgeColor: "teal",
+      logo: "⚡",
+      npm: "npm install @supabase/supabase-js",
+      steps: [
+        "به supabase.com بروید، پروژه جدید بسازید.",
+        "Settings → API → کلیدها را کپی کنید.",
+        "در Replit Secrets سه متغیر بالا را اضافه کنید.",
+        "createClient(url, key) را در server.ts فراخوانی کنید."
+      ]
+    },
+    {
+      name: "Cloudflare D1",
+      desc: "دیتابیس SQLite لبه‌ای Cloudflare — سریع، اقتصادی، مناسب کوئری‌های سبک.",
+      envKeys: [
+        { key: "CLOUDFLARE_ACCOUNT_ID", hint: "از داشبورد Cloudflare → Workers & Pages" },
+        { key: "CLOUDFLARE_D1_DATABASE_ID", hint: "بعد از ساخت database با Wrangler" },
+        { key: "CLOUDFLARE_API_TOKEN", hint: "از My Profile → API Tokens" }
+      ],
+      link: "https://developers.cloudflare.com/d1/",
+      badge: "Edge DB",
+      badgeColor: "orange",
+      logo: "🌐",
+      npm: "npm install wrangler",
+      steps: [
+        "npx wrangler d1 create taranom-db را اجرا کنید.",
+        "Database ID را از خروجی Wrangler کپی کنید.",
+        "سه متغیر بالا را در Replit Secrets قرار دهید.",
+        "از REST API یا Wrangler binding برای کوئری استفاده کنید."
+      ]
+    },
+    {
+      name: "Neon (Serverless PostgreSQL)",
+      desc: "PostgreSQL سرورلس با Auto-scaling، Branch database و تایم‌آوت هوشمند — رایگان تا ۵۱۲ مگابایت.",
+      envKeys: [
+        { key: "DATABASE_URL", hint: "Connection string از Neon Dashboard → Connection Details" }
+      ],
+      link: "https://neon.tech",
+      badge: "Serverless",
+      badgeColor: "purple",
+      logo: "🔋",
+      npm: "npm install @neondatabase/serverless",
+      steps: [
+        "به neon.tech بروید و پروژه بسازید.",
+        "Connection Details → Connection String را کپی کنید.",
+        "DATABASE_URL را در Replit Secrets قرار دهید.",
+        "از @neondatabase/serverless یا pg به‌عنوان کلاینت استفاده کنید."
+      ]
+    },
+    {
+      name: "Firebase Firestore",
+      desc: "NoSQL رئال‌تایم Google — Sync آفلاین، SDK کامل iOS/Android/Web، رایگان تا ۱ GiB.",
+      envKeys: [
+        { key: "FIREBASE_API_KEY", hint: "از Project Settings → General → Web App" },
+        { key: "FIREBASE_PROJECT_ID", hint: "شناسه پروژه Firebase شما" },
+        { key: "FIREBASE_APP_ID", hint: "App ID از Project Settings" },
+        { key: "FIREBASE_AUTH_DOMAIN", hint: "projectid.firebaseapp.com" }
+      ],
+      link: "https://firebase.google.com",
+      badge: "NoSQL",
+      badgeColor: "amber",
+      logo: "🔥",
+      npm: "npm install firebase firebase-admin",
+      steps: [
+        "به console.firebase.google.com بروید و پروژه بسازید.",
+        "Project Settings → General → Add App (Web) کلیدها را بگیرید.",
+        "Firestore Database را در Cloud Firestore فعال کنید.",
+        "متغیرها را در Replit Secrets قرار دهید."
+      ]
+    },
+  ];
 
   const testConnection = (type: "gemini" | "database") => {
     setTestStatus(prev => ({ ...prev, [type]: "loading" }));
@@ -636,6 +803,7 @@ export default function AdminView({ student, onUpdateBrand }: { student?: Studen
     { id: "sysdocs", label: "🛡️ مستندات استقرار و DevOps", icon: Terminal, color: "text-rose-600" },
     { id: "syslogs", label: "📜 لاگ تغییرات سیستمی", icon: List, color: "text-amber-600" },
     { id: "ai-monitor", label: "🤖 پایش هوش مصنوعی", icon: Brain, color: "text-violet-600", status: "زنده" },
+    { id: "db-monitor", label: "🗄️ پایش دیتابیس و ذخیره‌سازی", icon: Database, color: "text-cyan-600", status: "تست" },
     { id: "integrations", label: "🔌 تنظیمات اتصال و AI", icon: Globe, color: "text-indigo-600" },
     { id: "diagnostics", label: "🔎 خطایابی و پایش ماژول‌ها", icon: Zap, color: "text-rose-600" },
     { id: "zarinpal", label: "💳 تنظیمات درگاه زرین‌پال", icon: Wallet, color: "text-yellow-600" },
@@ -968,6 +1136,242 @@ export default function AdminView({ student, onUpdateBrand }: { student?: Studen
                     </ol>
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* ===== DB MONITOR PANEL ===== */}
+            {activeTab === "db-monitor" && (
+              <div className="p-8 space-y-8 animate-fade-in" style={{ direction: "rtl" }}>
+
+                {/* Header */}
+                <div className="bg-gradient-to-l from-cyan-50 to-blue-50 border border-cyan-100 p-6 rounded-3xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div className="space-y-1 text-right">
+                    <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                      <Database size={18} className="text-cyan-600" />
+                      <span>پایش دیتابیس و لایه ذخیره‌سازی (Storage Monitor)</span>
+                    </h3>
+                    <p className="text-[11px] text-slate-500 font-semibold">
+                      وضعیت تمام ماژول‌های ذخیره‌سازی، API endpoint‌ها و پیشنهاد مهاجرت به دیتابیس واقعی
+                    </p>
+                  </div>
+                  <div className="flex gap-3 flex-wrap">
+                    <button
+                      onClick={testAllLocalStorage}
+                      className="bg-cyan-700 hover:bg-cyan-800 text-white px-4 py-2.5 rounded-2xl text-[10px] font-black flex items-center gap-2 transition shadow-lg shadow-cyan-900/20"
+                    >
+                      <RefreshCw size={13} />
+                      <span>تست تمام Storage ها</span>
+                    </button>
+                    <button
+                      onClick={testAllApiEndpoints}
+                      className="bg-slate-800 hover:bg-slate-900 text-white px-4 py-2.5 rounded-2xl text-[10px] font-black flex items-center gap-2 transition shadow-lg"
+                    >
+                      <Activity size={13} className="animate-pulse" />
+                      <span>Ping تمام API‌ها</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Section 1: localStorage modules */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                    <Server size={16} className="text-slate-500" />
+                    <h4 className="text-sm font-black text-slate-800">لایه ذخیره‌سازی فعلی: localStorage مرورگر</h4>
+                    <span className="text-[9px] bg-amber-100 text-amber-700 border border-amber-200 px-2 py-0.5 rounded-full font-black">۱۲ کلید فعال</span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 font-semibold">
+                    اپلیکیشن در حال حاضر از localStorage مرورگر به‌عنوان دیتابیس استفاده می‌کند. داده‌ها فقط روی دستگاه کاربر ذخیره می‌شوند و با پاک کردن cache از بین می‌روند.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {localStorageModules.map((mod) => {
+                      const st = dbModuleTests[mod.key] || "idle";
+                      return (
+                        <div key={mod.key} className="bg-white border border-slate-100 rounded-2xl p-4 flex items-start justify-between gap-3 hover:border-slate-200 transition">
+                          <div className="flex items-start gap-3 flex-1 min-w-0">
+                            <span className="text-xl mt-0.5 shrink-0">{mod.icon}</span>
+                            <div className="min-w-0">
+                              <div className="text-[11px] font-black text-slate-800">{mod.label}</div>
+                              <code className="text-[9px] font-mono text-cyan-700 bg-cyan-50 px-1.5 py-0.5 rounded block mt-0.5 truncate">{mod.key}</code>
+                              <div className="flex flex-wrap gap-1 mt-1.5">
+                                {mod.modules.map(m => (
+                                  <span key={m} className="text-[8px] bg-slate-50 text-slate-500 border border-slate-100 px-1.5 py-0.5 rounded-full font-bold">{m}</span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex flex-col items-end gap-2 shrink-0">
+                            {st === "idle" && (
+                              <button
+                                onClick={() => testLocalStorageModule(mod.key)}
+                                className="text-[9px] bg-slate-100 hover:bg-slate-200 text-slate-600 px-2.5 py-1 rounded-lg font-black transition"
+                              >
+                                تست
+                              </button>
+                            )}
+                            {st === "loading" && (
+                              <span className="w-4 h-4 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+                            )}
+                            {st === "ok" && (
+                              <span className="text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-100 px-2.5 py-1 rounded-lg font-black flex items-center gap-1">
+                                <Check size={10} /> دارد داده
+                              </span>
+                            )}
+                            {st === "empty" && (
+                              <span className="text-[9px] bg-slate-50 text-slate-400 border border-slate-100 px-2.5 py-1 rounded-lg font-black">
+                                خالی
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Section 2: API Endpoint tests */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                    <Globe size={16} className="text-slate-500" />
+                    <h4 className="text-sm font-black text-slate-800">تست اتصال API Endpoint‌ها</h4>
+                    <span className="text-[9px] bg-blue-100 text-blue-700 border border-blue-200 px-2 py-0.5 rounded-full font-black">{apiEndpointDefs.length} endpoint</span>
+                  </div>
+                  <div className="overflow-hidden rounded-2xl border border-slate-100">
+                    <table className="w-full text-right text-[11px]">
+                      <thead className="bg-slate-50 border-b border-slate-100">
+                        <tr>
+                          <th className="px-4 py-3 font-black text-slate-500">Endpoint</th>
+                          <th className="px-4 py-3 font-black text-slate-500">متد</th>
+                          <th className="px-4 py-3 font-black text-slate-500">وضعیت</th>
+                          <th className="px-4 py-3 font-black text-slate-500">تأخیر</th>
+                          <th className="px-4 py-3 font-black text-slate-500">عمل</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {apiEndpointDefs.map(ep => {
+                          const st = apiEndpointTests[ep.id] || "idle";
+                          const ms = apiLatency[ep.id];
+                          return (
+                            <tr key={ep.id} className="bg-white hover:bg-slate-50/50 transition">
+                              <td className="px-4 py-3">
+                                <div className="font-black text-slate-700">{ep.label}</div>
+                                <code className="text-[9px] font-mono text-slate-400">{ep.path}</code>
+                              </td>
+                              <td className="px-4 py-3">
+                                <span className={`text-[9px] font-black px-2 py-0.5 rounded-full ${ep.method === "GET" ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-700"}`}>
+                                  {ep.method}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">
+                                {st === "idle" && <span className="text-[9px] text-slate-300 font-bold">—</span>}
+                                {st === "loading" && <span className="w-3.5 h-3.5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin inline-block" />}
+                                {st === "ok" && <span className="text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-100 px-2 py-0.5 rounded-lg font-black">✓ OK</span>}
+                                {st === "error" && <span className="text-[9px] bg-rose-50 text-rose-700 border border-rose-100 px-2 py-0.5 rounded-lg font-black">✗ خطا</span>}
+                              </td>
+                              <td className="px-4 py-3">
+                                {ms ? <span className="text-[9px] font-mono text-slate-500">{ms}ms</span> : <span className="text-[9px] text-slate-200">—</span>}
+                              </td>
+                              <td className="px-4 py-3">
+                                <button
+                                  onClick={() => testApiEndpoint(ep)}
+                                  disabled={st === "loading"}
+                                  className="text-[9px] bg-slate-100 hover:bg-blue-50 hover:text-blue-700 text-slate-500 px-2.5 py-1 rounded-lg font-black transition disabled:opacity-40"
+                                >
+                                  Ping
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Section 3: External DB Services */}
+                <div className="space-y-4">
+                  <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
+                    <Database size={16} className="text-slate-500" />
+                    <h4 className="text-sm font-black text-slate-800">مهاجرت به دیتابیس واقعی — گزینه‌های پیشنهادی</h4>
+                  </div>
+                  <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 text-[11px] text-amber-800 font-semibold flex items-start gap-3">
+                    <AlertCircle size={16} className="text-amber-500 shrink-0 mt-0.5" />
+                    <div>
+                      <strong>وضعیت فعلی:</strong> تمام داده‌ها در localStorage مرورگر کاربر ذخیره می‌شوند. برای استقرار تولیدی، انتقال به یکی از دیتابیس‌های زیر ضروری است. برای اضافه کردن کلیدها، از <strong>Replit Secrets</strong> استفاده کنید.
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    {externalDbServices.map((svc, i) => {
+                      const badgeColors: Record<string, string> = {
+                        emerald: "bg-emerald-100 text-emerald-800 border-emerald-200",
+                        teal: "bg-teal-100 text-teal-800 border-teal-200",
+                        orange: "bg-orange-100 text-orange-800 border-orange-200",
+                        purple: "bg-purple-100 text-purple-800 border-purple-200",
+                        amber: "bg-amber-100 text-amber-800 border-amber-200",
+                      };
+                      return (
+                        <div key={i} className="bg-white border border-slate-100 rounded-3xl p-6 space-y-4 hover:border-slate-200 transition">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex items-center gap-3">
+                              <span className="text-3xl">{svc.logo}</span>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <h5 className="text-sm font-black text-slate-900">{svc.name}</h5>
+                                  <span className={`text-[8px] font-black px-2 py-0.5 rounded-full border ${badgeColors[svc.badgeColor]}`}>{svc.badge}</span>
+                                </div>
+                                <p className="text-[11px] text-slate-500 font-semibold mt-0.5">{svc.desc}</p>
+                              </div>
+                            </div>
+                            <a
+                              href={svc.link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="shrink-0 text-[9px] bg-slate-800 hover:bg-slate-900 text-white px-3 py-1.5 rounded-xl font-black flex items-center gap-1.5 transition"
+                            >
+                              <Globe size={10} />
+                              <span>مستندات</span>
+                            </a>
+                          </div>
+
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {/* Env Keys */}
+                            <div className="space-y-2">
+                              <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">متغیرهای محیطی (Replit Secrets)</div>
+                              <div className="space-y-1.5">
+                                {svc.envKeys.map((ek) => (
+                                  <div key={ek.key} className="bg-slate-50 rounded-xl p-2.5 flex items-start gap-2">
+                                    <Key size={11} className="text-slate-400 mt-0.5 shrink-0" />
+                                    <div>
+                                      <code className="text-[10px] font-mono font-black text-slate-800">{ek.key}</code>
+                                      <p className="text-[9px] text-slate-400 font-semibold mt-0.5">{ek.hint}</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="bg-slate-900 rounded-xl p-2.5 flex items-center gap-2">
+                                <Terminal size={11} className="text-emerald-400 shrink-0" />
+                                <code className="text-[9px] font-mono text-emerald-400">{svc.npm}</code>
+                              </div>
+                            </div>
+
+                            {/* Setup Steps */}
+                            <div className="space-y-2">
+                              <div className="text-[9px] font-black text-slate-400 uppercase tracking-widest">مراحل راه‌اندازی</div>
+                              <ol className="space-y-1.5">
+                                {svc.steps.map((step, si) => (
+                                  <li key={si} className="flex items-start gap-2 text-[10px] text-slate-600 font-semibold leading-relaxed">
+                                    <span className="w-4 h-4 rounded-full bg-slate-100 text-slate-500 font-black text-[8px] flex items-center justify-center shrink-0 mt-0.5">{si + 1}</span>
+                                    <span>{step}</span>
+                                  </li>
+                                ))}
+                              </ol>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
               </div>
             )}
 
