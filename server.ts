@@ -325,11 +325,8 @@ app.post("/api/chat", async (req, res) => {
   try {
     const ai = getAI();
     if (!ai) {
-      console.warn("AI Client not available for /api/chat");
-      return res.status(503).json({ 
-        error: "AI_SERVICE_UNAVAILABLE",
-        reply: "متأسفانه در حال حاضر اتصال به سرور هوش مصنوعی برقرار نیست. لطفاً دقایقی دیگر تلاش کنید یا از بخش مصوبات دستی استفاده نمایید." 
-      });
+      console.warn("AI Client not available for /api/chat — using offline fallback");
+      return res.json({ reply: getOfflineChatReply(message) });
     }
 
     // Map history elements into Gemini parts format
@@ -363,11 +360,8 @@ app.post("/api/chat", async (req, res) => {
 
     return res.json({ reply });
   } catch (error: any) {
-    console.error("Error in Konkur chat with Gemini:", error);
-    res.status(500).json({ 
-      error: "INTERNAL_SERVER_ERROR",
-      reply: "خطایی در پردازش پاسخ هوشمند رخ داد. سیستم به طور خودکار در حال تلاش برای بازگرداندن اتصال است." 
-    });
+    console.warn("Error in Konkur chat with Gemini — using offline fallback:", error?.message);
+    res.json({ reply: getOfflineChatReply(message) });
   }
 });
 
