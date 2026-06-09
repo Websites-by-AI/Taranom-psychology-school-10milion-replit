@@ -244,7 +244,11 @@ export default function SmartNotifications({ role = "student", onAction }: Smart
     const initial = getNotificationsForRole(role);
     setNotifications(initial);
 
-    // Random trigger for a popup (simulating dynamic feedback on the fly tailored to the role)
+    // Show popup only once per session per role (not on every page load/chat)
+    const sessionKey = `taranom_popup_shown_${role}`;
+    const alreadyShown = sessionStorage.getItem(sessionKey);
+    if (alreadyShown) return;
+
     const timer = setTimeout(() => {
       const activeBanner = getRoleBannerAlert(role);
       const popup: SmartNotification = {
@@ -257,8 +261,8 @@ export default function SmartNotifications({ role = "student", onAction }: Smart
         read: false
       };
       setShowPopup(popup);
+      sessionStorage.setItem(sessionKey, "1");
       setNotifications(prev => {
-        // Prevent duplicate popup alerts
         if (prev.some(p => p.id === popup.id)) return prev;
         return [popup, ...prev];
       });
