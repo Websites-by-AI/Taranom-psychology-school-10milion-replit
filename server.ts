@@ -53,6 +53,67 @@ app.get("/api/health", (req, res) => {
   res.json({ status: "ok", industry: "High School Education & Konkur Prep", brand: "ترنم مهر", time: new Date().toISOString() });
 });
 
+// Endpoint for AI connectivity status — shows all AI-powered sections and their live status
+app.get("/api/ai-status", async (req, res) => {
+  const key = process.env.GEMINI_API_KEY;
+  const hasKey = !!(key && key.trim() !== "" && key !== "undefined" && key !== "null" && !key.includes("YOUR_API_KEY"));
+  const modelName = "gemini-3.5-flash";
+  const provider = "Google Gemini API";
+
+  const sections = [
+    { id: "chat",        nameFA: "چت دکتر رادان (مشاور هوشمند)", endpoint: "/api/chat",               usedIn: "بخش مشاور — داوطلب" },
+    { id: "motivational",nameFA: "پیام انگیزشی روزانه",           endpoint: "/api/motivational",        usedIn: "داشبورد داوطلب" },
+    { id: "goal_insight",nameFA: "تحلیل هدف و احتمال موفقیت",      endpoint: "/api/goal-insight",        usedIn: "بخش اهداف داوطلب" },
+    { id: "exam_analysis",nameFA: "تحلیل هوشمند کارنامه آزمون",   endpoint: "/api/analyze-exam",        usedIn: "داشبورد داوطلب — کارنامه" },
+    { id: "psychology",  nameFA: "تحلیل روانشناختی و شناختی",     endpoint: "/api/psychology-analysis", usedIn: "بخش روانشناسی داوطلب" },
+  ];
+
+  // If no key → all sections are in offline/fallback mode
+  if (!hasKey) {
+    return res.json({
+      hasKey: false,
+      provider,
+      model: modelName,
+      overallStatus: "offline",
+      message: "کلید GEMINI_API_KEY تنظیم نشده است. تمام بخش‌ها از پاسخ‌های آفلاین استفاده می‌کنند.",
+      sections: sections.map(s => ({ ...s, status: "offline", latencyMs: null }))
+    });
+  }
+
+  // If key is present, do a quick live test on /api/chat
+  let liveStatus: "live" | "error" = "live";
+  let latencyMs: number | null = null;
+  let errorMsg: string | null = null;
+
+  try {
+    const ai = getAI();
+    if (ai) {
+      const t0 = Date.now();
+      const chat = ai.chats.create({ model: modelName, config: { systemInstruction: "پاسخ کوتاه بده." } });
+      const result = await chat.sendMessage({ message: "سلام" });
+      if (!result.text?.trim()) throw new Error("empty reply");
+      latencyMs = Date.now() - t0;
+      liveStatus = "live";
+    } else {
+      liveStatus = "error";
+      errorMsg = "AI Client could not be initialised";
+    }
+  } catch (err: any) {
+    liveStatus = "error";
+    errorMsg = err?.message || "Unknown error";
+  }
+
+  return res.json({
+    hasKey: true,
+    provider,
+    model: modelName,
+    overallStatus: liveStatus,
+    latencyMs,
+    errorMsg,
+    sections: sections.map(s => ({ ...s, status: liveStatus, latencyMs }))
+  });
+});
+
 // Offline & Simulation Fallback Utility Functions
 function toPersianNum(num: number | string): string {
   const persianDigits = ["۰", "۱", "۲", "۳", "۴", "۵", "۶", "۷", "۸", "۹"];
@@ -326,7 +387,7 @@ app.post("/api/chat", async (req, res) => {
     const ai = getAI();
     if (!ai) {
       console.warn("AI Client not available for /api/chat — using offline fallback");
-      return res.json({ reply: getOfflineChatReply(message) });
+      return res.json({ reply: getOfflineChatReply(message), offline: true });
     }
 
     // Map history elements into Gemini parts format
@@ -361,7 +422,7 @@ app.post("/api/chat", async (req, res) => {
     return res.json({ reply });
   } catch (error: any) {
     console.warn("Error in Konkur chat with Gemini — using offline fallback:", error?.message);
-    res.json({ reply: getOfflineChatReply(message) });
+    res.json({ reply: getOfflineChatReply(message), offline: true });
   }
 });
 

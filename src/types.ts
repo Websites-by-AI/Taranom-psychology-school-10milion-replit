@@ -107,6 +107,7 @@ export interface ChatMessage {
   content: string;
   timestamp: string;
   isError?: boolean;
+  isOffline?: boolean;
 }
 
 export interface SystemLog {

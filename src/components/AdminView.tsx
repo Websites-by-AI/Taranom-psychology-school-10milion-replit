@@ -14,7 +14,7 @@ import ContentAuditModule from "./ContentAuditModule";
 import SaaSContractView from "./SaaSContractView";
 
 export default function AdminView({ student, onUpdateBrand }: { student?: Student | null; onUpdateBrand?: () => void }) {
-  const [activeTab, setActiveTab] = useState<"students" | "analytics" | "uploads" | "content"| "sysdocs" | "roadmap" | "architecture" | "mockexam" | "syslogs" | "integrations" | "investment" | "audit" | "zarinpal" | "diagnostics" | "contract">("roadmap");
+  const [activeTab, setActiveTab] = useState<"students" | "analytics" | "uploads" | "content"| "sysdocs" | "roadmap" | "architecture" | "mockexam" | "syslogs" | "integrations" | "investment" | "audit" | "zarinpal" | "diagnostics" | "contract" | "ai-monitor">("roadmap");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterField, setFilterField] = useState("all");
   const [selectedScenario, setSelectedScenario] = useState<"mvp" | "stable" | "enterprise">("stable");
@@ -31,6 +31,29 @@ export default function AdminView({ student, onUpdateBrand }: { student?: Studen
 
   const [isUploading, setIsUploading] = useState(false);
   
+  // --- AI MONITOR STATE ---
+  const [aiStatus, setAiStatus] = useState<any>(null);
+  const [aiStatusLoading, setAiStatusLoading] = useState(false);
+
+  const fetchAiStatus = async () => {
+    setAiStatusLoading(true);
+    try {
+      const res = await fetch("/api/ai-status");
+      const data = await res.json();
+      setAiStatus(data);
+    } catch (e) {
+      setAiStatus({ overallStatus: "error", errorMsg: "خطا در اتصال به سرور", sections: [] });
+    } finally {
+      setAiStatusLoading(false);
+    }
+  };
+
+  React.useEffect(() => {
+    if (activeTab === "ai-monitor" && !aiStatus) {
+      fetchAiStatus();
+    }
+  }, [activeTab]);
+
   // --- INTEGRATIONS STATE ---
   const [geminiKey, setGeminiKey] = useState("");
 
@@ -612,6 +635,7 @@ export default function AdminView({ student, onUpdateBrand }: { student?: Studen
     { id: "content", label: "📚 کتابخانه فایلها و منابع", icon: Film, color: "text-slate-600" },
     { id: "sysdocs", label: "🛡️ مستندات استقرار و DevOps", icon: Terminal, color: "text-rose-600" },
     { id: "syslogs", label: "📜 لاگ تغییرات سیستمی", icon: List, color: "text-amber-600" },
+    { id: "ai-monitor", label: "🤖 پایش هوش مصنوعی", icon: Brain, color: "text-violet-600", status: "زنده" },
     { id: "integrations", label: "🔌 تنظیمات اتصال و AI", icon: Globe, color: "text-indigo-600" },
     { id: "diagnostics", label: "🔎 خطایابی و پایش ماژول‌ها", icon: Zap, color: "text-rose-600" },
     { id: "zarinpal", label: "💳 تنظیمات درگاه زرین‌پال", icon: Wallet, color: "text-yellow-600" },
@@ -801,6 +825,149 @@ export default function AdminView({ student, onUpdateBrand }: { student?: Studen
                     </div>
                     <button className="bg-blue-900 text-white px-6 py-2.5 rounded-xl text-xs font-black shadow-lg shadow-blue-900/20">بروزرسانی تنظیمات درگاه</button>
                  </div>
+              </div>
+            )}
+
+            {/* ===== AI MONITOR PANEL ===== */}
+            {activeTab === "ai-monitor" && (
+              <div className="p-8 space-y-6 animate-fade-in" style={{ direction: "rtl" }}>
+                {/* Header */}
+                <div className="bg-gradient-to-l from-violet-50 to-indigo-50 border border-violet-100 p-6 rounded-3xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div className="space-y-1 text-right">
+                    <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                      <Brain size={18} className="text-violet-600" />
+                      <span>پایش هوشمند بخش‌های مجهز به هوش مصنوعی</span>
+                    </h3>
+                    <p className="text-[10px] text-slate-500 font-bold">
+                      نمایش آنی وضعیت اتصال، مدل مورد استفاده و API در هر ماژول
+                    </p>
+                  </div>
+                  <button
+                    onClick={fetchAiStatus}
+                    disabled={aiStatusLoading}
+                    className="flex items-center gap-2 bg-violet-600 hover:bg-violet-700 disabled:opacity-60 text-white px-5 py-2.5 rounded-2xl text-[11px] font-black transition-all shadow-lg shadow-violet-200"
+                  >
+                    <RefreshCw size={14} className={aiStatusLoading ? "animate-spin" : ""} />
+                    {aiStatusLoading ? "در حال بررسی..." : "تست مجدد اتصال"}
+                  </button>
+                </div>
+
+                {/* Overall Status Banner */}
+                {aiStatus && (
+                  <div className={`p-5 rounded-2xl border flex items-start gap-4 text-right ${
+                    aiStatus.overallStatus === "live"
+                      ? "bg-emerald-50 border-emerald-200"
+                      : aiStatus.overallStatus === "offline"
+                      ? "bg-amber-50 border-amber-200"
+                      : "bg-rose-50 border-rose-200"
+                  }`}>
+                    <div className={`p-3 rounded-xl shrink-0 ${
+                      aiStatus.overallStatus === "live" ? "bg-emerald-100 text-emerald-700"
+                      : aiStatus.overallStatus === "offline" ? "bg-amber-100 text-amber-700"
+                      : "bg-rose-100 text-rose-700"
+                    }`}>
+                      {aiStatus.overallStatus === "live" ? <Sparkles size={20} /> : <AlertCircle size={20} />}
+                    </div>
+                    <div className="space-y-1 flex-1">
+                      <div className="flex items-center justify-between flex-wrap gap-2">
+                        <h4 className="text-sm font-black text-slate-900">
+                          {aiStatus.overallStatus === "live" ? "✅ هوش مصنوعی آنلاین و فعال است"
+                            : aiStatus.overallStatus === "offline" ? "⚠️ حالت آفلاین — بدون کلید API"
+                            : "❌ خطا در اتصال به Gemini"}
+                        </h4>
+                        <div className="flex items-center gap-3 text-[10px] font-black text-slate-500">
+                          <span className="bg-white border border-slate-200 px-2 py-1 rounded-lg">
+                            🤖 مدل: <span className="text-violet-700">{aiStatus.model || "—"}</span>
+                          </span>
+                          <span className="bg-white border border-slate-200 px-2 py-1 rounded-lg">
+                            🔑 کلید API: <span className={aiStatus.hasKey ? "text-emerald-700" : "text-rose-700"}>
+                              {aiStatus.hasKey ? "تنظیم شده ✓" : "تنظیم نشده ✗"}
+                            </span>
+                          </span>
+                          {aiStatus.latencyMs && (
+                            <span className="bg-white border border-slate-200 px-2 py-1 rounded-lg">
+                              ⚡ تأخیر: <span className="text-blue-700">{aiStatus.latencyMs} ms</span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-[11px] text-slate-600 font-semibold leading-relaxed">
+                        {aiStatus.message || aiStatus.errorMsg || 
+                          (aiStatus.overallStatus === "live" ? `اتصال زنده به ${aiStatus.provider} برقرار است. تمام بخش‌ها از Gemini واقعی استفاده می‌کنند.` : "")}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Loading skeleton */}
+                {aiStatusLoading && !aiStatus && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {[1,2,3,4,5].map(i => (
+                      <div key={i} className="bg-slate-100 animate-pulse rounded-2xl h-28" />
+                    ))}
+                  </div>
+                )}
+
+                {/* Section Cards */}
+                {aiStatus && aiStatus.sections && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {aiStatus.sections.map((sec: any) => (
+                      <div key={sec.id} className="bg-white border border-slate-100 rounded-2xl p-5 shadow-sm space-y-3 hover:border-violet-200 transition-all">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="space-y-0.5 flex-1 text-right">
+                            <h5 className="text-xs font-black text-slate-900 leading-tight">{sec.nameFA}</h5>
+                            <p className="text-[10px] text-slate-400 font-semibold">{sec.usedIn}</p>
+                          </div>
+                          <span className={`shrink-0 text-[9px] font-black px-2.5 py-1 rounded-full border ${
+                            sec.status === "live"
+                              ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                              : sec.status === "offline"
+                              ? "bg-amber-50 text-amber-700 border-amber-200"
+                              : "bg-rose-50 text-rose-700 border-rose-200"
+                          }`}>
+                            {sec.status === "live" ? "🟢 زنده" : sec.status === "offline" ? "🟡 آفلاین" : "🔴 خطا"}
+                          </span>
+                        </div>
+                        <div className="border-t border-slate-50 pt-3 space-y-1.5">
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-slate-400 font-bold">Endpoint</span>
+                            <code className="text-indigo-600 font-mono bg-indigo-50 px-2 py-0.5 rounded-lg">{sec.endpoint}</code>
+                          </div>
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-slate-400 font-bold">مدل AI</span>
+                            <span className="text-violet-700 font-black">{aiStatus.model || "—"}</span>
+                          </div>
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="text-slate-400 font-bold">API Provider</span>
+                            <span className="text-slate-700 font-bold">{aiStatus.provider || "—"}</span>
+                          </div>
+                          {sec.latencyMs && (
+                            <div className="flex items-center justify-between text-[10px]">
+                              <span className="text-slate-400 font-bold">تأخیر پاسخ</span>
+                              <span className="text-blue-700 font-black">{sec.latencyMs} ms</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* How to enable Gemini */}
+                {aiStatus && !aiStatus.hasKey && (
+                  <div className="bg-slate-900 text-white p-6 rounded-3xl space-y-3 text-right">
+                    <h4 className="text-sm font-black flex items-center gap-2">
+                      <Key size={16} className="text-amber-400" />
+                      <span>چطور Gemini را فعال کنیم؟</span>
+                    </h4>
+                    <ol className="space-y-2 text-[11px] text-slate-300 font-semibold list-decimal list-inside leading-relaxed">
+                      <li>به <span className="text-amber-400 font-black">aistudio.google.com</span> بروید و یک API Key رایگان بگیرید.</li>
+                      <li>در پنل Replit، بخش <span className="text-emerald-400 font-black">Secrets</span> را باز کنید.</li>
+                      <li>یک Secret با نام <code className="bg-white/10 px-1.5 rounded font-mono">GEMINI_API_KEY</code> و مقدار کلید خود اضافه کنید.</li>
+                      <li>سرور را مجدداً راه‌اندازی کنید. همه بخش‌ها خودکار به Gemini واقعی متصل می‌شوند.</li>
+                    </ol>
+                  </div>
+                )}
               </div>
             )}
 

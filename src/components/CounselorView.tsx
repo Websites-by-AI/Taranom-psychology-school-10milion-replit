@@ -140,7 +140,8 @@ export default function CounselorView({ student, onNavigate }: CounselorViewProp
           id: (Date.now() + 1).toString(),
           role: "model",
           content: data.reply,
-          timestamp: new Date().toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit" })
+          timestamp: new Date().toLocaleTimeString("fa-IR", { hour: "2-digit", minute: "2-digit" }),
+          isOffline: !!data.offline
         };
         setMessages((prev) => [...prev, modelMsg]);
       } else {
@@ -405,14 +406,24 @@ export default function CounselorView({ student, onNavigate }: CounselorViewProp
                       }`}>
                         {msg.content}
                       </div>
-                      <div className={`flex items-center gap-1.5 px-1 ${msg.role === "user" ? "justify-start" : "justify-end"}`}>
+                      <div className={`flex items-center gap-1.5 px-1 flex-wrap ${msg.role === "user" ? "justify-start" : "justify-end"}`}>
                         <span className={`text-[9px] text-slate-400 font-mono`}>
                           {msg.timestamp}
                         </span>
-                        {msg.role === "model" && !msg.isError && (
+                        {msg.role === "model" && !msg.isError && !msg.isOffline && (
                           <div className="flex gap-0.5">
                             {[1, 2, 3].map(i => <div key={i} className="w-0.5 h-0.5 bg-emerald-400 rounded-full" />)}
                           </div>
+                        )}
+                        {msg.role === "model" && msg.isOffline && (
+                          <span className="text-[8px] bg-amber-50 text-amber-600 border border-amber-200 px-1.5 py-0.5 rounded-full font-black leading-none">
+                            🔌 حالت آفلاین
+                          </span>
+                        )}
+                        {msg.role === "model" && !msg.isOffline && !msg.isError && msg.id !== "1" && (
+                          <span className="text-[8px] bg-emerald-50 text-emerald-600 border border-emerald-200 px-1.5 py-0.5 rounded-full font-black leading-none">
+                            ✨ Gemini
+                          </span>
                         )}
                       </div>
                     </div>
